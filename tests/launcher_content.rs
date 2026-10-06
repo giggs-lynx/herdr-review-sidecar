@@ -47,18 +47,7 @@ fn windows_json_consumers_force_utf8_before_convert_from_json() {
         let script = read_script(name);
         assert_utf8_before_json(name, &script);
     }
-
-    let manifest_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("herdr-plugin.toml");
-    let manifest = std::fs::read_to_string(&manifest_path)
-        .unwrap_or_else(|e| panic!("read {}: {e}", manifest_path.display()));
-    let actions: Vec<&str> = manifest
-        .lines()
-        .filter(|line| line.contains("ConvertFrom-Json"))
-        .collect();
-    assert_eq!(actions.len(), 2, "expected both Windows action payloads");
-    for action in actions {
-        assert_utf8_before_json("manifest Windows action", action);
-    }
+    // This fork's manifest declares no Windows actions, so there is no inline payload to check.
 }
 
 fn assert_utf8_before_json(label: &str, text: &str) {

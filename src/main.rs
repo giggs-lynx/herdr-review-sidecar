@@ -12,6 +12,18 @@ fn main() -> std::io::Result<()> {
             println!("{}", herdr_file_viewer::launch::launch_decision(&json));
             Ok(())
         }
+        CliAction::LaunchDecisionReview => {
+            let mut json = String::new();
+            std::io::stdin().read_to_string(&mut json)?;
+            println!(
+                "{}",
+                herdr_file_viewer::launch::launch_decision_for(
+                    &json,
+                    herdr_file_viewer::launch::REVIEW_LABEL
+                )
+            );
+            Ok(())
+        }
         CliAction::LaunchDecisionTab => {
             let mut json = String::new();
             std::io::stdin().read_to_string(&mut json)?;

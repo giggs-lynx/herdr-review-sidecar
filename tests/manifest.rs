@@ -1,6 +1,7 @@
 //! the herdr plugin manifest is the Host Adapter's static surface.
 //!
 //! AC-17: the viewer declares a split-pane launch of the release binary.
+//! This fork's manifest declares only the review sidecar (pane, action and launcher).
 //! AC-N4: the viewer never auto-launches — the manifest declares no event hooks.
 //!
 //! Per the plan, these read `herdr-plugin.toml` to a string and assert on its contents.
@@ -26,23 +27,6 @@ fn manifest() -> String {
         })
         .collect::<Vec<_>>()
         .join("\n")
-}
-
-#[test]
-fn declares_split_pane_launching_the_release_binary() {
-    let m = manifest();
-    assert!(
-        m.contains("[[panes]]"),
-        "manifest must declare a [[panes]] entry"
-    );
-    assert!(
-        m.contains(r#"placement = "split""#),
-        "AC-17: the pane must declare placement = \"split\""
-    );
-    assert!(
-        m.contains(r#"command = ["./target/release/herdr-file-viewer"]"#),
-        "AC-17: the pane command must launch the release binary"
-    );
 }
 
 #[test]
@@ -72,29 +56,6 @@ fn declares_at_least_one_action() {
 }
 
 #[test]
-fn declares_split_and_tab_open_actions() {
-    // The viewer can be summoned as a split pane or in its own tab; each action runs its
-    // dedicated launcher script.
-    let m = manifest();
-    assert!(
-        m.contains(r#"id = "open-file-viewer""#),
-        "split-pane action present"
-    );
-    assert!(
-        m.contains(r#"id = "open-file-viewer-tab""#),
-        "tab action present"
-    );
-    assert!(
-        m.contains("scripts/open-file-viewer.sh"),
-        "split action runs its launcher"
-    );
-    assert!(
-        m.contains("scripts/open-file-viewer-tab.sh"),
-        "tab action runs its launcher"
-    );
-}
-
-#[test]
 fn pins_minimum_herdr_version() {
     assert!(
         // 0.7.5 is the first herdr with `placement = "popup"` plugin panes (the root picker).
@@ -114,113 +75,6 @@ fn declares_a_release_build_command() {
         m.contains("scripts/fetch-or-build.sh"),
         "the build step must run the fetch-or-build script (prebuilt binary, cargo fallback)"
     );
-}
-
-#[test]
-fn declares_linux_macos_and_windows_platforms() {
-    // AC-20: Windows is a declared platform, alongside the existing two.
-    assert!(
-        manifest().contains(r#"platforms = ["linux", "macos", "windows"]"#),
-        "manifest must declare platforms = [\"linux\", \"macos\", \"windows\"]"
-    );
-}
-
-#[test]
-fn build_step_is_platform_gated_unix_and_windows() {
-    // AC-14: exactly one [[build]] entry runs per host — the /bin/sh entry on unix, the
-    // PowerShell entry on Windows — via herdr's platform filter on the item-level `platforms`
-    // key (which overrides the top-level list).
-    let m = manifest();
-    assert!(
-        m.contains("[[build]]\nplatforms = [\"linux\", \"macos\"]\ncommand = [\"/bin/sh\", \"scripts/fetch-or-build.sh\"]"),
-        "unix [[build]] must be gated to [\"linux\", \"macos\"] and run fetch-or-build.sh: {m}"
-    );
-    assert!(
-        m.contains("[[build]]\nplatforms = [\"windows\"]\ncommand = [\"powershell\", \"-NoProfile\", \"-ExecutionPolicy\", \"Bypass\", \"-File\", \"scripts/fetch-or-build.ps1\"]"),
-        "Windows [[build]] must be gated to [\"windows\"] and run fetch-or-build.ps1: {m}"
-    );
-}
-
-#[test]
-fn open_file_viewer_action_is_platform_gated_unix_and_windows() {
-    // AC-14, AC-16: the open-file-viewer action has a unix (bash .sh) variant and a Windows
-    // (PowerShell .ps1) variant, each gated to its platform. The Windows variant carries a
-    // DISTINCT id (`open-file-viewer-windows`) because herdr rejects a duplicate action id at
-    // load time regardless of platform (verified live against herdr 0.7.1) — a same-id pair
-    // would fail to load on EVERY platform.
-    let m = manifest();
-    assert!(
-        m.contains("id = \"open-file-viewer\"\nplatforms = [\"linux\", \"macos\"]")
-            && m.contains("command = [\"bash\", \"scripts/open-file-viewer.sh\"]"),
-        "open-file-viewer's unix variant must be gated to [\"linux\", \"macos\"] and run the .sh launcher: {m}"
-    );
-    assert!(
-        m.contains("id = \"open-file-viewer-windows\"\nplatforms = [\"windows\"]"),
-        "open-file-viewer's Windows variant must use the distinct id open-file-viewer-windows, gated to [\"windows\"]: {m}"
-    );
-    // The Windows action runs the launcher via `-Command`, locating it by asking herdr for its own
-    // plugin root (`plugin list`), since the action's cwd is unreliable under herdr's `\\?\` server cwd.
-    assert!(
-        m.contains("plugin list --json") && m.contains("'open-file-viewer.ps1'"),
-        "open-file-viewer's Windows variant must locate the .ps1 via herdr's plugin root: {m}"
-    );
-}
-
-#[test]
-fn open_file_viewer_tab_action_is_platform_gated_unix_and_windows() {
-    let m = manifest();
-    assert!(
-        m.contains("id = \"open-file-viewer-tab\"\nplatforms = [\"linux\", \"macos\"]")
-            && m.contains("command = [\"bash\", \"scripts/open-file-viewer-tab.sh\"]"),
-        "open-file-viewer-tab's unix variant must be gated to [\"linux\", \"macos\"] and run the .sh launcher: {m}"
-    );
-    assert!(
-        m.contains("id = \"open-file-viewer-tab-windows\"\nplatforms = [\"windows\"]"),
-        "open-file-viewer-tab's Windows variant must use the distinct id open-file-viewer-tab-windows, gated to [\"windows\"]: {m}"
-    );
-    assert!(
-        m.contains("plugin list --json") && m.contains("'open-file-viewer-tab.ps1'"),
-        "open-file-viewer-tab's Windows variant must locate the .ps1 via herdr's plugin root: {m}"
-    );
-}
-
-#[test]
-fn declares_the_root_picker_popup_and_its_action() {
-    // `prefix+d`-style "open the viewer at a chosen directory": split and tab actions whose launcher opens
-    // the `root-picker` pane as a popup; the pane runs the binary's `--pick-root` mode. Unix only
-    // (Windows cannot spawn a relative pane command, GH #58).
-    let m = manifest();
-    let pane = m
-        .split("[[panes]]")
-        .find(|block| block.contains(r#"id = "root-picker""#))
-        .expect("a root-picker [[panes]] entry");
-    assert!(pane.contains(r#"placement = "popup""#), "{pane}");
-    assert!(
-        pane.contains(r#"command = ["./target/release/herdr-file-viewer", "--pick-root"]"#),
-        "{pane}"
-    );
-    assert!(pane.contains(r#"platforms = ["linux", "macos"]"#), "{pane}");
-    let action = m
-        .split("[[actions]]")
-        .find(|block| block.contains(r#"id = "open-file-viewer-at""#))
-        .expect("an open-file-viewer-at action");
-    assert!(
-        action.contains(r#"command = ["bash", "scripts/open-file-viewer-at.sh", "split"]"#),
-        "{action}"
-    );
-    assert!(
-        action.contains(r#"platforms = ["linux", "macos"]"#),
-        "{action}"
-    );
-    let tab = m
-        .split("[[actions]]")
-        .find(|block| block.contains(r#"id = "open-file-viewer-at-tab""#))
-        .expect("an open-file-viewer-at-tab action");
-    assert!(
-        tab.contains(r#"command = ["bash", "scripts/open-file-viewer-at.sh", "tab"]"#),
-        "{tab}"
-    );
-    assert!(tab.contains(r#"platforms = ["linux", "macos"]"#), "{tab}");
 }
 
 #[test]
@@ -273,4 +127,58 @@ fn declares_no_event_hooks() {
         !m.contains("[[link_handlers]]"),
         "manifest must declare no [[link_handlers]] (no automatic invocation path)"
     );
+}
+
+#[test]
+fn declares_split_pane_launching_the_release_binary_in_review_mode() {
+    let m = manifest();
+    assert!(
+        m.contains("[[panes]]"),
+        "manifest must declare a [[panes]] entry"
+    );
+    assert!(
+        m.contains(r#"placement = "split""#),
+        "AC-17: the pane must declare placement = \"split\""
+    );
+    assert!(
+        m.contains(r#"command = ["./target/release/herdr-file-viewer", "--review"]"#),
+        "AC-17: the pane command must launch the release binary in review mode"
+    );
+}
+
+#[test]
+fn declares_linux_and_macos_platforms() {
+    assert!(
+        manifest().contains(r#"platforms = ["linux", "macos"]"#),
+        "the review sidecar's shell launcher limits it to linux and macos"
+    );
+}
+
+#[test]
+fn declares_the_review_action() {
+    let m = manifest();
+    assert!(m.contains(r#"id = "open-review-sidecar""#));
+    assert!(m.contains(r#"command = ["bash", "scripts/open-review-sidecar.sh"]"#));
+}
+
+#[test]
+fn coexists_with_an_installed_herdr_file_viewer() {
+    // Both plugins can be installed together only when their ids differ, and each launcher
+    // toggles only its own pane only when the pane titles differ (launch decisions match by title).
+    let m = manifest();
+    assert!(m.contains(r#"id = "giggs.review-sidecar""#));
+    assert!(!m.contains(r#"id = "herdr-file-viewer""#));
+    assert!(m.contains(&format!(
+        "title = \"{}\"",
+        herdr_file_viewer::launch::REVIEW_LABEL
+    )));
+    assert!(!m.contains(r#"title = "Files""#));
+
+    let launcher = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("scripts/open-review-sidecar.sh"),
+    )
+    .unwrap();
+    assert!(launcher.contains(r#"plugin_id="giggs.review-sidecar""#));
+    assert!(launcher.contains("--entrypoint review"));
+    assert!(launcher.contains("--launch-decision-review"));
 }

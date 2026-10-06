@@ -37,6 +37,15 @@ struct Pane {
 /// - A pane id that is not flag-safe is never emitted (→ `OPEN`), so a host-supplied id can
 ///   never option-inject when the launcher passes it to `herdr pane zoom|close`.
 pub fn launch_decision(pane_list_json: &str) -> String {
+    launch_decision_for(pane_list_json, "Files")
+}
+
+/// The review sidecar's pane title (`herdr-plugin.toml`): a distinct label, so its launcher never
+/// focuses or closes a file viewer's `"Files"` pane, and the file viewer's never touches it.
+pub const REVIEW_LABEL: &str = "Review";
+
+/// [`launch_decision`] for the pane titled `label`.
+pub fn launch_decision_for(pane_list_json: &str, label: &str) -> String {
     let Ok(list) = serde_json::from_str::<PaneList>(pane_list_json) else {
         return "OPEN".to_string();
     };
@@ -49,7 +58,7 @@ pub fn launch_decision(pane_list_json: &str) -> String {
     let tab = focused.tab_id.as_deref();
     let files = panes
         .iter()
-        .find(|p| p.label.as_deref() == Some("Files") && p.tab_id.as_deref() == tab);
+        .find(|p| p.label.as_deref() == Some(label) && p.tab_id.as_deref() == tab);
     let Some(files) = files else {
         return "OPEN".to_string();
     };
@@ -218,6 +227,19 @@ mod tests {
     fn no_files_pane_opens() {
         let j = list(&[pane("wE:p1", "", true, "wE:t1")]);
         assert_eq!(launch_decision(&j), "OPEN");
+    }
+
+    #[test]
+    fn the_review_decision_only_sees_the_review_pane() {
+        let j = list(&[
+            pane("wE:p1", "", false, "wE:t1"),
+            pane("wE:pF", "Files", true, "wE:t1"),
+            pane("wE:pR", REVIEW_LABEL, false, "wE:t1"),
+        ]);
+        assert_eq!(launch_decision_for(&j, REVIEW_LABEL), "FOCUS wE:pR");
+        assert_eq!(launch_decision(&j), "CLOSE wE:pF");
+        let only_files = list(&[pane("wE:pF", "Files", true, "wE:t1")]);
+        assert_eq!(launch_decision_for(&only_files, REVIEW_LABEL), "OPEN");
     }
 
     #[test]

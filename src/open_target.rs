@@ -51,6 +51,8 @@ pub enum CliAction {
     LaunchDecision,
     /// Print a tab-launcher decision from stdin JSON, then exit.
     LaunchDecisionTab,
+    /// Print the review launcher's split decision from stdin JSON, then exit.
+    LaunchDecisionReview,
     /// Print the configured `open_direction` (`right` / `down`) on one line, then exit. The
     /// launcher scripts ask for it so the herdr split goes where `config.toml` says; reading no
     /// stdin and touching no layout, it is safe for them to call on every summon.
@@ -72,6 +74,7 @@ pub enum CliAction {
 /// Degrades, never fails:
 /// - unknown flags are ignored (herdr may append args we do not control)
 /// - a bare `--open` with no value is ignored (start with no open target)
+/// - `--launch-decision-review` wins over everything: the review launcher wants its decision.
 /// - `--launch-decision` / `--launch-decision-tab` win over a normal run (and over `--open`),
 ///   and over `--open-direction` — a launcher asking for a decision wants the decision.
 /// - `--open-direction` otherwise wins over a normal run: it is a query, not a session.
@@ -93,6 +96,7 @@ where
     let mut pick_root = false;
     let mut review = false;
     let mut print_review_root = false;
+    let mut launch_review = false;
     let mut args = args.into_iter().peekable();
     while let Some(arg) = args.next() {
         let arg = arg.as_ref();
@@ -117,6 +121,9 @@ where
             "--review-root" => {
                 print_review_root = true;
             }
+            "--launch-decision-review" => {
+                launch_review = true;
+            }
             "--open" => {
                 let take = args
                     .peek()
@@ -140,7 +147,9 @@ where
             }
         }
     }
-    if launch {
+    if launch_review {
+        CliAction::LaunchDecisionReview
+    } else if launch {
         if launch_tab {
             CliAction::LaunchDecisionTab
         } else {
@@ -545,6 +554,10 @@ mod tests {
         assert_eq!(
             parse_args(["--review-root", "--review"]),
             CliAction::PrintReviewRoot
+        );
+        assert_eq!(
+            parse_args(["--launch-decision-review", "--review-root"]),
+            CliAction::LaunchDecisionReview
         );
     }
 
