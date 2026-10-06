@@ -44,6 +44,16 @@ fn main() -> std::io::Result<()> {
             println!("{}", eff.open_direction.label());
             Ok(())
         }
+        CliAction::PrintReviewRoot => match herdr_file_viewer::review::root_from_env() {
+            Ok(dir) => {
+                println!("{}", dir.display());
+                Ok(())
+            }
+            Err(reason) => {
+                eprintln!("review sidecar: {reason}");
+                std::process::exit(1);
+            }
+        },
         CliAction::PickRoot => herdr_file_viewer::root_picker::run(),
         CliAction::RunReview => herdr_file_viewer::run_review(),
         CliAction::Run { open } => herdr_file_viewer::run(open),

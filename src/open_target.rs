@@ -57,6 +57,9 @@ pub enum CliAction {
     PrintOpenDirection,
     /// Run the root-picker popup (`--pick-root`): ask for a directory, open a viewer tab there.
     PickRoot,
+    /// Print the review directory for the focused pane's work (`--review-root`), then exit. The
+    /// review launcher asks for it before opening the pane, and review writers ask for it too.
+    PrintReviewRoot,
     /// Start the TUI in review mode (`--review`): a flat list of review items in the directory
     /// named by `HERDR_FILE_VIEWER_ROOT`, with git and remote notices off.
     RunReview,
@@ -74,6 +77,7 @@ pub enum CliAction {
 /// - `--open-direction` otherwise wins over a normal run: it is a query, not a session.
 /// - `--pick-root` runs the root-picker popup instead of the viewer (and ignores `--open`).
 /// - `--review` runs the viewer in review mode (and ignores `--open`).
+/// - `--review-root` prints the review directory, like `--open-direction` a query, not a session.
 ///
 /// `--open` values must not look like flags (`-…`); a following `-x` is left for the next
 /// iteration so it can be ignored as unknown rather than treated as a path.
@@ -88,6 +92,7 @@ where
     let mut print_direction = false;
     let mut pick_root = false;
     let mut review = false;
+    let mut print_review_root = false;
     let mut args = args.into_iter().peekable();
     while let Some(arg) = args.next() {
         let arg = arg.as_ref();
@@ -108,6 +113,9 @@ where
             }
             "--review" => {
                 review = true;
+            }
+            "--review-root" => {
+                print_review_root = true;
             }
             "--open" => {
                 let take = args
@@ -140,6 +148,8 @@ where
         }
     } else if print_direction {
         CliAction::PrintOpenDirection
+    } else if print_review_root {
+        CliAction::PrintReviewRoot
     } else if pick_root {
         CliAction::PickRoot
     } else if review {
@@ -531,6 +541,10 @@ mod tests {
         assert_eq!(
             parse_args(["--review", "--launch-decision"]),
             CliAction::LaunchDecision
+        );
+        assert_eq!(
+            parse_args(["--review-root", "--review"]),
+            CliAction::PrintReviewRoot
         );
     }
 
