@@ -476,6 +476,9 @@ fn event_loop(terminal: &mut DefaultTerminal, controller: &mut Controller) -> io
         if controller.tick_open_range_flash(now) {
             dirty = true;
         }
+        if controller.tick_review_watch(now) {
+            dirty = true;
+        }
     }
 }
 

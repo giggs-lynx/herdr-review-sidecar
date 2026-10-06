@@ -30,6 +30,8 @@ mod lineselect;
 mod mouse;
 mod picker;
 mod pinned;
+mod review;
+pub use review::REVIEW_RESCAN_INTERVAL;
 
 use crate::annotation::AnnotationStore;
 use crate::finder::FinderState;
@@ -763,6 +765,7 @@ pub struct Controller {
     compact_dirs: bool,
     /// Review mode's item index (`--review`); `None` in the ordinary file viewer.
     review_index: Option<crate::review::ReviewIndex>,
+    review_scanned_at: Option<Instant>,
     changed_only: bool,
     /// Which command a Diff/FullDiff render delegates to (`D`, cycling Delta →
     /// DeltaSideBySide → Raw). Carried
@@ -1055,6 +1058,7 @@ impl Controller {
             confirm_discard: true,
             compact_dirs: false,
             review_index: None,
+            review_scanned_at: None,
             tree_hscroll: 0,
             changed_only: false,
             diff_render_mode: DiffRenderMode::default(),
