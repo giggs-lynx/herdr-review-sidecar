@@ -45,6 +45,7 @@ fn main() -> std::io::Result<()> {
             Ok(())
         }
         CliAction::PickRoot => herdr_file_viewer::root_picker::run(),
+        CliAction::RunReview => herdr_file_viewer::run_review(),
         CliAction::Run { open } => herdr_file_viewer::run(open),
     }
 }

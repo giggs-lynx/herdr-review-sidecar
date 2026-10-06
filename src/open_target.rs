@@ -57,6 +57,9 @@ pub enum CliAction {
     PrintOpenDirection,
     /// Run the root-picker popup (`--pick-root`): ask for a directory, open a viewer tab there.
     PickRoot,
+    /// Start the TUI in review mode (`--review`): a flat list of review items in the directory
+    /// named by `HERDR_FILE_VIEWER_ROOT`, with git and remote notices off.
+    RunReview,
     /// Start the TUI; `open` is the raw `--open` value when present (env is layered in `app::run`).
     Run { open: Option<String> },
 }
@@ -70,6 +73,7 @@ pub enum CliAction {
 ///   and over `--open-direction` — a launcher asking for a decision wants the decision.
 /// - `--open-direction` otherwise wins over a normal run: it is a query, not a session.
 /// - `--pick-root` runs the root-picker popup instead of the viewer (and ignores `--open`).
+/// - `--review` runs the viewer in review mode (and ignores `--open`).
 ///
 /// `--open` values must not look like flags (`-…`); a following `-x` is left for the next
 /// iteration so it can be ignored as unknown rather than treated as a path.
@@ -83,6 +87,7 @@ where
     let mut launch = false;
     let mut print_direction = false;
     let mut pick_root = false;
+    let mut review = false;
     let mut args = args.into_iter().peekable();
     while let Some(arg) = args.next() {
         let arg = arg.as_ref();
@@ -100,6 +105,9 @@ where
             }
             "--pick-root" => {
                 pick_root = true;
+            }
+            "--review" => {
+                review = true;
             }
             "--open" => {
                 let take = args
@@ -134,6 +142,8 @@ where
         CliAction::PrintOpenDirection
     } else if pick_root {
         CliAction::PickRoot
+    } else if review {
+        CliAction::RunReview
     } else {
         CliAction::Run { open: open_flag }
     }
@@ -508,6 +518,19 @@ mod tests {
         assert_eq!(
             parse_args(["--pick-root", "--launch-decision-tab"]),
             CliAction::LaunchDecisionTab
+        );
+    }
+
+    #[test]
+    fn parse_args_review_runs_review_mode_and_ignores_open() {
+        assert_eq!(parse_args(["--review"]), CliAction::RunReview);
+        assert_eq!(
+            parse_args(["--review", "--open", "a.md"]),
+            CliAction::RunReview
+        );
+        assert_eq!(
+            parse_args(["--review", "--launch-decision"]),
+            CliAction::LaunchDecision
         );
     }
 

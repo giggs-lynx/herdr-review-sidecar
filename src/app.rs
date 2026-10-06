@@ -48,10 +48,37 @@ const RENDER_TIMEOUT: Duration = Duration::from_secs(5);
 /// [`crate::open_target::OPEN_ENV`] (`HERDR_FILE_VIEWER_OPEN`) as flag > env; an absent/empty
 /// pair leaves startup selection unchanged.
 pub fn run(open_flag: Option<String>) -> io::Result<()> {
+    run_with(open_flag, false)
+}
+
+/// Wire the components in review mode (`--review`) and run until the user closes the viewer.
+/// The root must come from [`host::ROOT_ENV`]: falling back to the invoking pane's cwd would list
+/// a whole repository, so a missing or invalid root shows the reason and waits for Enter instead.
+pub fn run_review() -> io::Result<()> {
+    let root = std::env::var(host::ROOT_ENV).ok();
+    if let Err(reason) = crate::review::review_root(root.as_deref(), Path::is_dir) {
+        eprintln!("review sidecar: {reason}\n(press Enter to close)");
+        let _ = io::stdin().read_line(&mut String::new());
+        return Ok(());
+    }
+    run_with(None, true)
+}
+
+fn run_with(open_flag: Option<String>, review: bool) -> io::Result<()> {
     // Before anything can move the cwd (`follow_root`): external tools keep running from here.
     crate::proc::remember_launch_dir();
     let ctx = host::from_env();
-    let resolved = root::resolve(&ctx);
+    let resolved = if review {
+        root::Resolved {
+            root: ctx.cwd.clone(),
+            is_git_repo: false,
+            repo_root: None,
+            is_worktree: false,
+            base_branch: None,
+        }
+    } else {
+        root::resolve(&ctx)
+    };
 
     // Load + resolve the plugin's optional TOML config once, up front (AC-3..AC-5, AC-14, AC-16,
     // AC-17): `eff` is the fully-resolved config > env > default settings the rest of `run` wires
@@ -185,7 +212,7 @@ pub fn run(open_flag: Option<String>) -> io::Result<()> {
     // refresh receiver. `start_default()` would re-read HERDR_FILE_VIEWER_NO_UPDATE_CHECK and let
     // the env silently override a config `update_check = true` (AC-3/AC-10).
     controller.set_update(crate::update::start_default_with(
-        !crate::config::should_start_update_check(&eff),
+        review || !crate::config::should_start_update_check(&eff),
     ));
     // Inject the herdr query channel + the viewer's own workspace id for the worktree picker's
     // agent-active overlay (AC-3) — the first real use of the host seam. `ctx` is still in

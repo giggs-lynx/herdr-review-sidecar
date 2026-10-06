@@ -31,6 +31,7 @@ pub mod preview_layout;
 pub mod proc;
 pub mod prompt;
 pub mod render;
+pub mod review;
 pub mod root;
 pub mod root_picker;
 pub mod search;
@@ -48,4 +49,9 @@ pub mod worktree;
 /// viewer (AC-20).
 pub fn run(open_flag: Option<String>) -> std::io::Result<()> {
     app::run(open_flag)
+}
+
+/// Run the viewer in review mode (`--review`).
+pub fn run_review() -> std::io::Result<()> {
+    app::run_review()
 }
