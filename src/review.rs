@@ -91,6 +91,22 @@ pub fn display_source(id: &str, text: &str) -> String {
     format!("{heading}\n\n{}", body.trim_start_matches(['\r', '\n']))
 }
 
+/// [`display_source`] applied to a classified file, leaving placeholders untouched.
+pub fn prepare(path: &Path, prepared: crate::render::Prepared) -> crate::render::Prepared {
+    use crate::render::Prepared;
+    let id = item_id(path);
+    match prepared {
+        Prepared::Full { text } => Prepared::Full {
+            text: display_source(&id, &text),
+        },
+        Prepared::Truncated { text, notice } => Prepared::Truncated {
+            text: display_source(&id, &text),
+            notice,
+        },
+        other => other,
+    }
+}
+
 fn strip_line<'a>(text: &'a str, line: &str) -> Option<&'a str> {
     let rest = text.strip_prefix(line)?;
     rest.strip_prefix("\r\n")

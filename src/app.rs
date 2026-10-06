@@ -116,6 +116,7 @@ fn run_with(open_flag: Option<String>, review: bool) -> io::Result<()> {
                 root: resolved.root.clone(),
                 renderers: factory_renderers.clone(),
                 caps,
+                review,
             });
             RootProviders { git, content }
         });
@@ -561,6 +562,8 @@ struct LiveContent {
     /// The size caps (line + byte) for classifying/previewing content, resolved from config
     /// (`preview_max_lines` / `preview_max_kib`) at startup. `Copy`.
     caps: Caps,
+    /// Review mode: rendered markdown swaps its frontmatter for an `# <id> <title>` heading.
+    review: bool,
 }
 
 impl ContentProvider for LiveContent {
@@ -586,6 +589,11 @@ impl ContentProvider for LiveContent {
             Prepared::Binary
         } else {
             render::classify(&self.root, path, self.caps)
+        };
+        let prepared = if self.review && mode == ViewMode::RenderedMarkdown {
+            crate::review::prepare(path, prepared)
+        } else {
+            prepared
         };
         let name = path.file_name().and_then(OsStr::to_str);
         // Retain the raw source lines behind a source-mapped render: `SyntaxContent` displays one
@@ -1598,7 +1606,53 @@ mod tests {
                 timeout: Duration::from_secs(5),
             },
             caps: Caps::default(),
+            review: false,
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn review_markdown_reaches_the_renderer_with_an_id_heading_instead_of_frontmatter() {
+        let root = tmp("review-frontmatter");
+        let file = root.join("Q01.md");
+        std::fs::write(&file, "---\ntitle: Pick\nstatus: done\n---\nBody\n").unwrap();
+        let cat = || vec!["cat".to_string()];
+        let content = LiveContent {
+            root: root.clone(),
+            renderers: Renderers {
+                markdown: cat(),
+                diff: cat(),
+                full_diff: cat(),
+                syntax: cat(),
+                timeout: Duration::from_secs(5),
+            },
+            caps: Caps::default(),
+            review: true,
+        };
+        let render = |mode| {
+            let out =
+                content.render_at_width(&file, mode, None, None, None, DiffRenderMode::default());
+            out.content
+                .lines
+                .iter()
+                .map(|l| {
+                    l.spans
+                        .iter()
+                        .map(|s| s.content.as_ref())
+                        .collect::<String>()
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            render(ViewMode::RenderedMarkdown),
+            ["# Q01 Pick", "", "Body"]
+        );
+        assert_eq!(
+            render(ViewMode::SyntaxContent)[0],
+            "---",
+            "the source view keeps the file as it is"
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// End-to-end wiring: a NON-default cap on `LiveContent` must reach `classify` and truncate,
@@ -1624,6 +1678,7 @@ mod tests {
                 max_lines: 50,
                 max_bytes: 1024 * 1024,
             },
+            review: false,
         };
         let out = content.render_at_width(
             &file,
