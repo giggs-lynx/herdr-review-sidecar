@@ -25,6 +25,7 @@ fn node(path: &str, kind: NodeKind, depth: usize, expanded: bool, status: Option
         status,
         dir_dirty: false,
         label: None,
+        review: None,
     }
 }
 
@@ -245,6 +246,7 @@ fn dirty_directory_carries_a_non_color_glyph_marker() {
             status: None,
             dir_dirty: true,
             label: None,
+            review: None,
         },
         Node {
             path: PathBuf::from("/r/clean"),
@@ -254,6 +256,7 @@ fn dirty_directory_carries_a_non_color_glyph_marker() {
             status: None,
             dir_dirty: false,
             label: None,
+            review: None,
         },
     ];
     state.selected = 1; // the clean dir, so the dirty dir row isn't REVERSED
@@ -292,6 +295,7 @@ fn dirty_directory_glyph_snapshot() {
             status: None,
             dir_dirty: true,
             label: None,
+            review: None,
         },
         node(
             "/r/changed/a.rs",
@@ -315,6 +319,7 @@ fn dirty_directory_glyph_snapshot() {
             status: None,
             dir_dirty: false,
             label: None,
+            review: None,
         },
         node(
             "/r/gone.txt",
@@ -1110,6 +1115,7 @@ fn tree_rows_are_colored_by_git_status() {
             status: None,
             dir_dirty: true,
             label: None,
+            review: None,
         },
         node(
             "/r/src/mod.rs",
@@ -4664,6 +4670,7 @@ fn a_compacted_directory_row_renders_its_chain_label() {
             status: None,
             dir_dirty: false,
             label: Some("src/main/java".to_string()),
+            review: None,
         },
         node(
             "/r/src/main/java/App.java",

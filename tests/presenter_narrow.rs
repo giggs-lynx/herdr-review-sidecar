@@ -24,6 +24,7 @@ fn node(path: &str, kind: NodeKind, depth: usize, status: Option<Status>) -> Nod
         status,
         dir_dirty: false,
         label: None,
+        review: None,
     }
 }
 

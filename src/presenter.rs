@@ -492,6 +492,9 @@ const ANNOTATION_STYLE: Style = Style::new().bg(Color::DarkGray);
 /// beside. Reserving the width makes the column a node's name starts in a true function of its
 /// depth, so siblings line up and a child is always one level in from its parent.
 fn tree_row(node: &Node, selected: bool, annotated: bool) -> Line<'static> {
+    if let Some(meta) = &node.review {
+        return review_row(node, meta, selected);
+    }
     let glyph = match node.kind {
         NodeKind::Dir if node.expanded => "▾ ",
         NodeKind::Dir => "▸ ",
@@ -536,6 +539,24 @@ fn tree_row(node: &Node, selected: bool, annotated: bool) -> Line<'static> {
         None => spans.push(Span::styled(name, name_style)),
     }
     Line::from(spans)
+}
+
+/// Render one review-mode row: `<status glyph> <id>  <title>`, dimmed once the item is closed.
+fn review_row(node: &Node, meta: &crate::review::Meta, selected: bool) -> Line<'static> {
+    let mut style = Style::new();
+    if meta.status.is_closed() {
+        style = style.add_modifier(Modifier::DIM);
+    }
+    if selected {
+        style = style.add_modifier(Modifier::REVERSED);
+    }
+    let text = format!(
+        "{} {}  {}",
+        meta.status.glyph(),
+        crate::review::item_id(&node.path),
+        meta.title
+    );
+    Line::from(Span::styled(sanitize_control(text.trim_end()), style))
 }
 
 /// Build a [`ScrollbarState`] that places the thumb correctly for a **scroll offset** (not a list

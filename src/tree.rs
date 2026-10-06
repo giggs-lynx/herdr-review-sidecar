@@ -35,6 +35,9 @@ pub struct Node {
     /// deepest directory of the chain (`…/java`). `None` on every ordinary row, so the Presenter
     /// falls back to the file name and an uncompacted tree renders exactly as before.
     pub label: Option<String>,
+    /// Review mode's frontmatter for an item row, filled in by the controller; `None` outside
+    /// review mode.
+    pub review: Option<crate::review::Meta>,
 }
 
 /// The tree's sibling order, and the **single source of truth** for it: directories before
@@ -170,6 +173,8 @@ pub struct TreeModel {
     /// Draw a chain of single-child directories as one row (`src/main/java`) instead of one row
     /// per segment. Off by default; seeded once at startup from the `compact_dirs` config key.
     compact_dirs: bool,
+    /// When set, only the root's files whose name passes are listed (review mode).
+    file_filter: Option<fn(&str) -> bool>,
     /// Memoized [`probe_fold`](Self::probe_fold) results, one per directory probed — **the whole
     /// price of compaction**, and deliberately the fold SHAPE rather than any directory's contents.
     ///
@@ -208,6 +213,7 @@ impl TreeModel {
             is_git_repo: false,
             changed_only: false,
             compact_dirs: false,
+            file_filter: None,
             folds: RefCell::new(HashMap::new()),
             full_reads: Cell::new(0),
             probe_reads: Cell::new(0),
@@ -221,6 +227,11 @@ impl TreeModel {
     pub fn set_compact_dirs(&mut self, on: bool) {
         self.compact_dirs = on;
         self.invalidate_compaction();
+        self.clamp_cursor();
+    }
+
+    pub fn set_file_filter(&mut self, keep: Option<fn(&str) -> bool>) {
+        self.file_filter = keep;
         self.clamp_cursor();
     }
 
@@ -348,6 +359,12 @@ impl TreeModel {
 
     fn collect(&self, dir: &Path, depth: usize, out: &mut Vec<Node>) {
         for (path, kind) in self.entries(dir) {
+            if let Some(keep) = self.file_filter
+                && !(kind == NodeKind::File
+                    && path.file_name().and_then(|n| n.to_str()).is_some_and(keep))
+            {
+                continue;
+            }
             // Under `compact_dirs`, a directory that only ever contains one subdirectory is folded
             // into that chain: one row, `path` the DEEPEST directory, so expand/collapse, status,
             // and the child walk below all act on the directory the row actually leads into. The
@@ -367,6 +384,7 @@ impl TreeModel {
                 status: self.status_for(&path),
                 dir_dirty,
                 label,
+                review: None,
             });
             if expanded {
                 self.collect(&path, depth + 1, out);
@@ -467,6 +485,7 @@ impl TreeModel {
                 status: self.status_for(&abs),
                 dir_dirty: kind == NodeKind::Dir && self.dir_contains_change(&abs),
                 label,
+                review: None,
             });
             if kind == NodeKind::Dir {
                 self.emit_synthetic(&rel, depth + 1, dirs, files, out);

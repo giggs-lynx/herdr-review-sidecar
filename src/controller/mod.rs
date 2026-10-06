@@ -761,6 +761,8 @@ pub struct Controller {
     /// default `false`). A session preference carried across a re-root (like `show_ignored` /
     /// `hide_hidden`), so the new root's fresh tree is rebuilt with the same shape.
     compact_dirs: bool,
+    /// Review mode's item index (`--review`); `None` in the ordinary file viewer.
+    review_index: Option<crate::review::ReviewIndex>,
     changed_only: bool,
     /// Which command a Diff/FullDiff render delegates to (`D`, cycling Delta →
     /// DeltaSideBySide → Raw). Carried
@@ -1052,6 +1054,7 @@ impl Controller {
             // Defaults ON, matching the resolver: a Controller built without config still guards.
             confirm_discard: true,
             compact_dirs: false,
+            review_index: None,
             tree_hscroll: 0,
             changed_only: false,
             diff_render_mode: DiffRenderMode::default(),
@@ -1629,6 +1632,16 @@ impl Controller {
         self.dispatch_render();
     }
 
+    /// Switch to review mode: list only the root's review items, labelled from their frontmatter.
+    /// Ignore rules are bypassed so a stray ignore file above the review directory cannot hide items.
+    pub fn apply_review_mode(&mut self) {
+        self.review_index = Some(crate::review::ReviewIndex::new(self.root.clone()));
+        self.tree.set_file_filter(Some(crate::review::is_item));
+        self.show_ignored = true;
+        self.tree.set_show_ignored(true);
+        self.dispatch_render();
+    }
+
     /// Apply the config-driven `confirm_discard` switch. Pure in-memory wiring.
     pub fn apply_confirm_discard(&mut self, confirm: bool) {
         self.confirm_discard = confirm;
@@ -1882,7 +1895,12 @@ impl Controller {
         // Build the visible node list once and read the selection from it, rather than calling
         // `tree.selected()` (which re-runs the gitignore-aware filesystem walk) a second time
         // for the wrap decision — `visible_nodes()` is the hot, per-frame path.
-        let nodes = self.tree.visible_nodes();
+        let mut nodes = self.tree.visible_nodes();
+        if let Some(index) = &self.review_index {
+            for node in &mut nodes {
+                node.review = index.meta(&node.path).cloned();
+            }
+        }
         let selected = self.tree.cursor_in(&nodes);
         // Active wrapping responds immediately to the live `w` preference while a width-sensitive
         // reflow is pending; the settled document captures the same value when that render lands.
