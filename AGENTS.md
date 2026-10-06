@@ -294,3 +294,24 @@ assignment for every scalar `Config` field — keep its key list in lockstep wit
 not commit-exact; main being ahead of the tag no longer forces a source build. So features can
 batch into one release. Caveat: a change to how a launcher script/manifest **invokes** the binary
 must bump the version in that same commit.
+
+## Fork: review sidecar
+
+This repository is a fork of `smarzban/herdr-file-viewer` that ships the viewer as a review sidecar
+(`docs/review-sidecar.md`). Keep the fork mergeable with upstream:
+
+- **Review mode is opt-in.** Everything fork-specific sits behind `--review` (`app::run_review`,
+  `Controller::apply_review_mode`, `src/review.rs`, `src/controller/review.rs`). Without the flag
+  the viewer behaves exactly like upstream, so upstream's tests keep passing unchanged. Leave
+  upstream features (git, worktrees, annotations, pins, the root picker) in place rather than
+  deleting them: they are inert in review mode, and deleting them would conflict on every merge.
+- **Fork docs live in `docs/review-sidecar.md`.** Do not add fork entries to `CHANGELOG.md` (it is
+  upstream's release notes and is compiled into the `?` overlay), `docs/keys.md` or
+  `docs/usage.md`; the README carries only a pointer. This overrides the definition of done above
+  for fork-only changes.
+- **The manifest is the fork's own.** `herdr-plugin.toml` declares only the review pane and action,
+  and `tests/manifest.rs` tests that manifest; on a merge, keep ours. `scripts/fetch-or-build.*`
+  download from this fork's releases, so a version shared with upstream never installs upstream's
+  binary.
+- **Merging upstream:** `git fetch upstream && git merge upstream/main` on a branch, resolve, run the
+  full test suite, then a PR. The upstream release process above does not apply to this fork.

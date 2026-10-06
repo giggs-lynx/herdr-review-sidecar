@@ -1,5 +1,9 @@
 # herdr-file-viewer
 
+> **This fork ships the viewer as a review sidecar** (`giggs.review-sidecar`): review items listed
+> by status beside your work, refreshed live. See [docs/review-sidecar.md](docs/review-sidecar.md).
+> The rest of this README describes the upstream file viewer.
+
 [![CI](https://github.com/smarzban/herdr-file-viewer/actions/workflows/ci.yml/badge.svg)](https://github.com/smarzban/herdr-file-viewer/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Rust 1.96+](https://img.shields.io/badge/rust-1.96%2B-orange.svg)
