@@ -541,22 +541,40 @@ fn tree_row(node: &Node, selected: bool, annotated: bool) -> Line<'static> {
     Line::from(spans)
 }
 
-/// Render one review-mode row: `<status glyph> <id>  <title>`, dimmed once the item is closed.
+/// Review rows copy fzf's default theme, the look of the shell sidecar this mode replaced: a `▌`
+/// gutter that turns pink on the selected row, and a dark band behind that row.
+const REVIEW_GUTTER: Color = Color::Indexed(236);
+const REVIEW_POINTER: Color = Color::Indexed(161);
+const REVIEW_SELECTED_BG: Color = Color::Indexed(236);
+const REVIEW_SELECTED_FG: Color = Color::Indexed(254);
+
+/// Render one review-mode row: `▌ <status glyph> <id>  <title>`, dimmed once the item is closed.
 fn review_row(node: &Node, meta: &crate::review::Meta, selected: bool) -> Line<'static> {
-    let mut style = Style::new();
+    let mut text = Style::new();
     if meta.status.is_closed() {
-        style = style.add_modifier(Modifier::DIM);
+        text = text.add_modifier(Modifier::DIM);
     }
-    if selected {
-        style = style.add_modifier(Modifier::REVERSED);
-    }
-    let text = format!(
+    let (gutter, row) = if selected {
+        let band = Style::new().bg(REVIEW_SELECTED_BG);
+        text = text
+            .patch(band)
+            .fg(REVIEW_SELECTED_FG)
+            .add_modifier(Modifier::BOLD);
+        (band.fg(REVIEW_POINTER).add_modifier(Modifier::BOLD), band)
+    } else {
+        (Style::new().fg(REVIEW_GUTTER), Style::new())
+    };
+    let label = format!(
         "{} {}  {}",
         meta.status.glyph(),
         crate::review::item_id(&node.path),
         meta.title
     );
-    Line::from(Span::styled(sanitize_control(text.trim_end()), style))
+    Line::from(vec![
+        Span::styled("▌", gutter),
+        Span::styled(" ", row),
+        Span::styled(sanitize_control(label.trim_end()), text),
+    ])
 }
 
 /// Build a [`ScrollbarState`] that places the thumb correctly for a **scroll offset** (not a list
@@ -1079,6 +1097,24 @@ fn draw_tree(frame: &mut Frame, area: Rect, state: &ViewState) {
         )),
         text,
     );
+    if state
+        .nodes
+        .get(state.selected)
+        .is_some_and(|n| n.review.is_some())
+        && let Some(row) = state
+            .selected
+            .checked_sub(offset)
+            .filter(|r| *r < text.height as usize)
+    {
+        let band = Rect {
+            y: text.y + row as u16,
+            height: 1,
+            ..text
+        };
+        frame
+            .buffer_mut()
+            .set_style(band, Style::new().bg(REVIEW_SELECTED_BG));
+    }
     if let Some(track) = vbar {
         // The tree's vertical thumb tracks the CURSOR (selected index), not the viewport offset —
         // the tree has no independent vertical scroll (its position follows the selection, #45), so

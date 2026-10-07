@@ -12,7 +12,7 @@ use herdr_file_viewer::presenter::draw;
 use herdr_file_viewer::review::Status;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
-use ratatui::style::Modifier;
+use ratatui::style::{Color, Modifier};
 use std::fs;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -103,22 +103,50 @@ fn draws_status_glyph_id_and_title_and_dims_closed_items() {
             })
             .unwrap_or_else(|| panic!("no row shows {needle:?}"))
     };
-    let modifier_at = |needle: &str| {
+    let cell_at = |needle: &str| {
         let y = row_of(needle);
+        let first = needle.chars().next().unwrap().to_string();
         let x = (0..buffer.area.width)
-            .find(|&x| buffer[(x, y)].symbol() == needle.chars().next().unwrap().to_string())
+            .find(|&x| buffer[(x, y)].symbol() == first)
             .unwrap();
-        buffer[(x, y)].modifier
+        (x, y)
+    };
+    let gutter = |needle: &str| {
+        let (x, y) = cell_at(needle);
+        buffer[(x - 2, y)].clone()
     };
 
-    let open = modifier_at("○ F01  Null check");
+    let (x, y) = cell_at("○ F01  Null check");
+    let selected = &buffer[(x, y)];
     assert!(
-        open.contains(Modifier::REVERSED),
+        selected.modifier.contains(Modifier::BOLD),
         "the first item is selected"
     );
-    assert!(!open.contains(Modifier::DIM));
-    assert!(modifier_at("✓ Q01  Which layer").contains(Modifier::DIM));
-    assert!(modifier_at("✗ Q02  Dropped idea").contains(Modifier::DIM));
+    assert!(!selected.modifier.contains(Modifier::DIM));
+    assert_eq!(selected.bg, Color::Indexed(236));
+    assert_eq!(selected.fg, Color::Indexed(254));
+    let pointer = gutter("○ F01  Null check");
+    assert_eq!(pointer.symbol(), "▌");
+    assert_eq!(
+        (pointer.fg, pointer.bg),
+        (Color::Indexed(161), Color::Indexed(236))
+    );
+    let band_end = (x..buffer.area.width)
+        .take_while(|&cx| buffer[(cx, y)].symbol() != "│")
+        .last()
+        .unwrap();
+    assert_eq!(
+        buffer[(band_end, y)].bg,
+        Color::Indexed(236),
+        "the selected band reaches the tree column's edge"
+    );
+
+    for closed in ["✓ Q01  Which layer", "✗ Q02  Dropped idea"] {
+        let (x, y) = cell_at(closed);
+        assert!(buffer[(x, y)].modifier.contains(Modifier::DIM), "{closed}");
+        assert_eq!(buffer[(x, y)].bg, Color::Reset, "{closed}");
+        assert_eq!(gutter(closed).fg, Color::Indexed(236), "{closed}");
+    }
 }
 
 const LOADING_PLACEHOLDER: &str = "Rendering\u{2026}";
