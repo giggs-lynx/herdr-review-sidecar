@@ -1,5 +1,6 @@
-//! Review mode: a flat list of review items (`F01.md`, `Q01.md`, …) in one directory, each a
-//! markdown file whose frontmatter carries a `title` and a `status`.
+//! Review mode: a flat list of the Markdown files in one directory. Review items (`F01.md`,
+//! `Q01.md`, …) carry a `title` and a `status` in their frontmatter; any other file is titled by
+//! its first heading and has no status.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -39,13 +40,13 @@ impl Status {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Meta {
     pub title: String,
-    pub status: Status,
+    /// `None` for a file without frontmatter: it is listed with no status glyph.
+    pub status: Option<Status>,
 }
 
-/// Whether a file name is a review item, with the shell glob `[A-Z][0-9]*.md`'s semantics.
+/// Whether a file is listed: any Markdown file that is not hidden.
 pub fn is_item(name: &str) -> bool {
-    let b = name.as_bytes();
-    b.len() >= 5 && b[0].is_ascii_uppercase() && b[1].is_ascii_digit() && name.ends_with(".md")
+    !name.starts_with('.') && name.ends_with(".md")
 }
 
 /// The item id shown in the list: the file name without `.md` (`F01`).
@@ -56,11 +57,30 @@ pub fn item_id(path: &Path) -> String {
 }
 
 /// Split a leading `---` … `---` frontmatter block off `text`, reading its `title:` and
-/// `status:` lines. Text without a closed block is all body.
+/// `status:` lines. Text without a closed block is all body and has no status; a missing title
+/// falls back to the body's first `# ` heading.
 pub fn parse(text: &str) -> (Meta, &str) {
-    let mut meta = Meta::default();
+    let (mut meta, body) = parse_frontmatter(text);
+    if meta.title.is_empty() {
+        meta.title = first_heading(body).to_string();
+    }
+    (meta, body)
+}
+
+fn first_heading(body: &str) -> &str {
+    body.lines()
+        .find_map(|line| line.strip_prefix("# "))
+        .map(str::trim)
+        .unwrap_or("")
+}
+
+fn parse_frontmatter(text: &str) -> (Meta, &str) {
     let Some(rest) = strip_line(text, "---") else {
-        return (meta, text);
+        return (Meta::default(), text);
+    };
+    let mut meta = Meta {
+        status: Some(Status::Open),
+        ..Meta::default()
     };
     let mut cursor = rest;
     while !cursor.is_empty() {
@@ -72,7 +92,7 @@ pub fn parse(text: &str) -> (Meta, &str) {
         if let Some(v) = line.strip_prefix("title:") {
             meta.title = unquote(v.trim()).to_string();
         } else if let Some(v) = line.strip_prefix("status:") {
-            meta.status = Status::parse(unquote(v.trim()));
+            meta.status = Some(Status::parse(unquote(v.trim())));
         }
         cursor = next;
     }
@@ -333,19 +353,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn is_item_follows_the_shell_glob() {
-        for yes in ["F01.md", "Q1.md", "A9-notes.md", "Z00.md"] {
+    fn is_item_takes_every_markdown_file_that_is_not_hidden() {
+        for yes in ["F01.md", "Q1.md", "notes.md", "README.md", "todo list.md"] {
             assert!(is_item(yes), "{yes}");
         }
-        for no in [
-            "f01.md",
-            "F.md",
-            "FA1.md",
-            "F01.txt",
-            "F01.md.bak",
-            "README.md",
-            "1F.md",
-        ] {
+        for no in [".hidden.md", "F01.txt", "F01.md.bak", ".socket"] {
             assert!(!is_item(no), "{no}");
         }
     }
@@ -354,7 +366,7 @@ mod tests {
     fn parse_reads_title_and_status_and_returns_the_body() {
         let (meta, body) = parse("---\ntitle: Pick a layer\nstatus: done\n---\nBody\n");
         assert_eq!(meta.title, "Pick a layer");
-        assert_eq!(meta.status, Status::Done);
+        assert_eq!(meta.status, Some(Status::Done));
         assert_eq!(body, "Body\n");
     }
 
@@ -362,7 +374,7 @@ mod tests {
     fn parse_handles_crlf_quotes_and_unknown_status() {
         let (meta, body) = parse("---\r\ntitle: \"a: b\"\r\nstatus: wip\r\n---\r\nx");
         assert_eq!(meta.title, "a: b");
-        assert_eq!(meta.status, Status::Open);
+        assert_eq!(meta.status, Some(Status::Open));
         assert_eq!(body, "x");
     }
 
@@ -370,7 +382,18 @@ mod tests {
     fn parse_treats_text_without_a_closed_block_as_body() {
         let text = "---\ntitle: never closed\n";
         assert_eq!(parse(text), (Meta::default(), text));
-        assert_eq!(parse("# plain\n"), (Meta::default(), "# plain\n"));
+        assert_eq!(parse("intro\n"), (Meta::default(), "intro\n"));
+    }
+
+    #[test]
+    fn a_file_without_a_title_takes_its_first_heading_and_one_without_frontmatter_has_no_status() {
+        let (meta, body) = parse("intro\n# Things to do\n- one\n");
+        assert_eq!(meta.title, "Things to do");
+        assert_eq!(meta.status, None);
+        assert_eq!(body, "intro\n# Things to do\n- one\n");
+        let (meta, _) = parse("---\nstatus: done\n---\n# From the body\n");
+        assert_eq!(meta.title, "From the body");
+        assert_eq!(meta.status, Some(Status::Done));
     }
 
     #[test]

@@ -551,7 +551,7 @@ const REVIEW_SELECTED_FG: Color = Color::Indexed(254);
 /// Render one review-mode row: `▌ <status glyph> <id>  <title>`, dimmed once the item is closed.
 fn review_row(node: &Node, meta: &crate::review::Meta, selected: bool) -> Line<'static> {
     let mut text = Style::new();
-    if meta.status.is_closed() {
+    if meta.status.is_some_and(crate::review::Status::is_closed) {
         text = text.add_modifier(Modifier::DIM);
     }
     let (gutter, row) = if selected {
@@ -564,9 +564,12 @@ fn review_row(node: &Node, meta: &crate::review::Meta, selected: bool) -> Line<'
     } else {
         (Style::new().fg(REVIEW_GUTTER), Style::new())
     };
+    let glyph = meta
+        .status
+        .map(|status| format!("{} ", status.glyph()))
+        .unwrap_or_default();
     let label = format!(
-        "{} {}  {}",
-        meta.status.glyph(),
+        "{glyph}{}  {}",
         crate::review::item_id(&node.path),
         meta.title
     );

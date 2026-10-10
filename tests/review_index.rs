@@ -11,7 +11,7 @@ fn write(dir: &TempDir, name: &str, text: &str) {
 }
 
 #[test]
-fn indexes_only_item_files_with_their_frontmatter() {
+fn indexes_every_markdown_file_with_its_frontmatter() {
     let dir = TempDir::new();
     write(&dir, "F01.md", "---\ntitle: One\nstatus: done\n---\nbody");
     write(&dir, "notes.md", "---\ntitle: Not an item\n---\n");
@@ -21,10 +21,13 @@ fn indexes_only_item_files_with_their_frontmatter() {
     let index = ReviewIndex::new(dir.path().to_path_buf());
     let metas = index.metas();
 
-    assert_eq!(metas.len(), 1);
+    assert_eq!(metas.len(), 2);
     let meta = index.meta(&dir.path().join("F01.md")).unwrap();
     assert_eq!(meta.title, "One");
-    assert_eq!(meta.status, Status::Done);
+    assert_eq!(meta.status, Some(Status::Done));
+    let notes = index.meta(&dir.path().join("notes.md")).unwrap();
+    assert_eq!(notes.title, "Not an item");
+    assert_eq!(notes.status, Some(Status::Open));
 }
 
 #[test]
@@ -49,7 +52,7 @@ fn rescan_reports_added_changed_and_removed_items_once() {
     );
     assert_eq!(
         index.meta(&dir.path().join("Q01.md")).unwrap().status,
-        Status::Dropped
+        Some(Status::Dropped)
     );
     assert!(index.meta(&dir.path().join("Q02.md")).is_none());
     assert!(index.rescan().is_empty());

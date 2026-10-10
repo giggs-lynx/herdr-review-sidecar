@@ -8,8 +8,8 @@ so it installs alongside herdr-file-viewer without either launcher touching the 
 
 ## Review items
 
-A review directory holds one markdown file per item, named like the shell glob `[A-Z][0-9]*.md`
-(`F01.md`, `Q01.md`, `Q12.md`). Each file starts with a frontmatter block:
+A review directory holds one Markdown file per item. Every `.md` file in it that is not hidden is
+listed; review items are named `F01.md`, `Q01.md`, `Q12.md` and start with a frontmatter block:
 
 ```markdown
 ---
@@ -19,8 +19,10 @@ status: open
 The body, in markdown.
 ```
 
-- `status` is `open`, `done` or `dropped`; anything else, or no status, reads as `open`.
-- Other files in the directory (notes, sockets, subdirectories) are not listed.
+- `status` is `open`, `done` or `dropped`; anything else, or no status line, reads as `open`.
+- A file with no `title:` is titled by its first `# ` heading; a file with no frontmatter at all has
+  no status, so its row shows no glyph and is never dimmed.
+- Hidden files, other file types and subdirectories are not listed.
 
 ## What the pane shows
 

@@ -44,14 +44,14 @@ fn seed(dir: &TempDir) {
         "Q02.md",
         "---\ntitle: Dropped idea\nstatus: dropped\n---\nbody",
     );
-    write("notes.md", "not an item");
+    write("notes.md", "# Notes\nnot a review item, still listed");
     write(".socket", "x");
     fs::create_dir(dir.path().join("sub")).unwrap();
     fs::write(dir.path().join("sub/F09.md"), "nested").unwrap();
 }
 
 #[test]
-fn lists_only_root_items_with_their_frontmatter() {
+fn lists_the_root_markdown_files_with_their_frontmatter() {
     let dir = TempDir::new();
     seed(&dir);
     let ctrl = review_controller(&dir);
@@ -72,9 +72,14 @@ fn lists_only_root_items_with_their_frontmatter() {
     assert_eq!(
         rows,
         [
-            ("F01.md".into(), "Null check".into(), Status::Open),
-            ("Q01.md".into(), "Which layer".into(), Status::Done),
-            ("Q02.md".into(), "Dropped idea".into(), Status::Dropped),
+            ("F01.md".into(), "Null check".into(), Some(Status::Open)),
+            ("Q01.md".into(), "Which layer".into(), Some(Status::Done)),
+            (
+                "Q02.md".into(),
+                "Dropped idea".into(),
+                Some(Status::Dropped)
+            ),
+            ("notes.md".into(), "Notes".into(), None),
         ]
     );
 }
@@ -219,7 +224,7 @@ fn editing_the_displayed_item_rerenders_it_in_place() {
     );
     assert_eq!(
         ctrl.view_state().nodes[0].review.as_ref().unwrap().status,
-        Status::Done
+        Some(Status::Done)
     );
 }
 
@@ -247,7 +252,7 @@ fn a_new_item_is_listed_without_touching_the_displayed_one() {
     assert!(ctrl.tick_review_watch(Instant::now()));
 
     assert_eq!(ctrl.render_seq(), seq, "the displayed item did not change");
-    assert_eq!(ctrl.view_state().nodes.len(), 4);
+    assert_eq!(ctrl.view_state().nodes.len(), 5);
     assert_eq!(selected_name(&ctrl), "F01.md");
 }
 
